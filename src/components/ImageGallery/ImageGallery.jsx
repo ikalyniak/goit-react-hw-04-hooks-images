@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import Loader from 'react-loader-spinner';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
@@ -17,141 +17,137 @@ const STATUS = {
   resolved: 'resolved',
 };
 
-class ImageGallery extends React.Component {
-  static propTypes = { searchQuery: PropTypes.string };
+export default function ImageGallery({ searchQuery }) {
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState(STATUS.idle);
+  const [error, setError] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalImageURL, setModalImageURL] = useState('');
+  const [modalImageALT, setModalImageALT] = useState('');
 
-  state = {
-    images: [],
-    page: 1,
-    perPage: 12,
-    status: STATUS.idle,
-    error: null,
-    showModal: false,
-    modalImageURL: '',
-    modalImageALT: '',
-  };
+  useEffect(() => {
+    if (searchQuery !== '' && page === 1) {
+      setStatus(STATUS.pending);
+      setPage(1);
+      setImages([]);
 
-  componentDidUpdate(prevProps, prevState) {
-    const { page, perPage } = this.state;
-    const { searchQuery } = this.props;
-
-    if (prevProps.searchQuery !== searchQuery) {
-      this.setState({ status: STATUS.pending });
       fetch(
-        `${BASE_URL}?q=${this.props.searchQuery}&page=${page}&key=${API_KEY}&image_type=photo&orientation=horizontal&per_page=${perPage}`,
+        `${BASE_URL}?q=${searchQuery}&page=${page}&key=${API_KEY}&image_type=photo&orientation=horizontal&per_page=12`,
       )
         .then(response => response.json())
         .then(data => {
           if (data.hits.length > 0) {
-            this.setState({
-              images: [...data.hits],
-              status: STATUS.resolved,
-            });
+            setImages([...data.hits]);
+            setStatus(STATUS.resolved);
           } else toast.error(`no data on your request '${searchQuery}'`);
         })
         .catch(error => {
-          this.setState({
-            status: STATUS.rejected,
-            error,
-            images: [],
-          });
+          setStatus(STATUS.rejected);
+          setError(error);
+          setImages([]);
+
           toast.error(`${error.message}`);
+        })
+        .finally(() => {
+          scrolling();
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
-    if (prevState.page !== page) {
-      this.setState({ status: STATUS.pending });
+  useEffect(() => {
+    if (page > 1) {
+      setStatus(STATUS.pending);
+
       fetch(
-        `${BASE_URL}?q=${this.props.searchQuery}&page=${page}&key=${API_KEY}&image_type=photo&orientation=horizontal&per_page=${perPage}`,
+        `${BASE_URL}?q=${searchQuery}&page=${page}&key=${API_KEY}&image_type=photo&orientation=horizontal&per_page=12`,
       )
         .then(response => response.json())
         .then(data => {
           if (data.hits.length > 0) {
-            this.setState({
-              images: [...prevState.images, ...data.hits],
-              status: STATUS.resolved,
-            });
+            setImages(state => [...state, ...data.hits]);
+            setStatus(STATUS.resolved);
           } else toast.error(`no data on your request '${searchQuery}'`);
         })
         .catch(error => {
-          this.setState({ status: STATUS.rejected, error });
+          setStatus(STATUS.rejected);
+          setError(error);
+          setImages([]);
+
           toast.error(`${error.message}`);
+        })
+        .finally(() => {
+          scrolling();
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, page]);
 
-    this.scrolling();
-  }
-
-  scrolling = () => {
+  const scrolling = () => {
     window.scrollTo({
       top: document.documentElement.scrollHeight,
       behavior: 'smooth',
     });
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
+  const handleLoadMore = () => {
+    setPage(state => state + 1);
   };
 
-  toggleModal = (url, alt) => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-      modalImageURL: url,
-      modalImageALT: alt,
-    }));
+  const toggleModal = (url, alt) => {
+    setShowModal(!showModal);
+    setModalImageURL(url);
+    setModalImageALT(alt);
   };
 
-  render() {
-    const { images, status, error, showModal } = this.state;
+  if (status === STATUS.idle) {
+    return <h2 className={styles.inscription}>Please type your query!</h2>;
+  }
 
-    if (status === STATUS.idle) {
-      return <h2 className={styles.inscription}>Please type your query!</h2>;
-    }
+  if (status === STATUS.pending) {
+    return (
+      <div className={styles.loader}>
+        <Loader
+          type="ThreeDots"
+          color="#00BFFF"
+          height={80}
+          width={80}
+          timeout={3000}
+        />
+      </div>
+    );
+  }
 
-    if (status === STATUS.pending) {
-      return (
-        <div className={styles.loader}>
-          <Loader
-            type="ThreeDots"
-            color="#00BFFF"
-            height={80}
-            width={80}
-            timeout={3000}
-          />
-        </div>
-      );
-    }
+  if (status === STATUS.rejected) {
+    return <h2 className={styles.inscription}>{error.message}</h2>;
+  }
 
-    if (status === STATUS.rejected) {
-      return <h2 className={styles.inscription}>{error.message}</h2>;
-    }
-
-    if (status === STATUS.resolved) {
-      return (
-        <>
-          <ul className={styles.ImageGallery}>
-            {images.map(image => (
-              <ImageGalleryItem
-                key={image.id}
-                src={image.webformatURL}
-                largeImg={image.largeImageURL}
-                onModal={this.toggleModal}
-                alt={image.tags}
-              />
-            ))}
-          </ul>
-          <Button loadMore={this.handleLoadMore} />
-          {showModal && (
-            <Modal
-              onModal={this.toggleModal}
-              modalImg={this.state.modalImageURL}
-              modalImgALT={this.state.modalImageALT}
+  if (status === STATUS.resolved) {
+    return (
+      <>
+        <ul className={styles.ImageGallery}>
+          {images.map(image => (
+            <ImageGalleryItem
+              key={image.id}
+              src={image.webformatURL}
+              largeImg={image.largeImageURL}
+              onModal={toggleModal}
+              alt={image.tags}
             />
-          )}
-        </>
-      );
-    }
+          ))}
+        </ul>
+        <Button loadMore={handleLoadMore} />
+        {showModal && (
+          <Modal
+            onModal={toggleModal}
+            modalImg={modalImageURL}
+            modalImgALT={modalImageALT}
+          />
+        )}
+      </>
+    );
   }
 }
 
-export default ImageGallery;
+ImageGallery.propTypes = { searchQuery: PropTypes.string };
