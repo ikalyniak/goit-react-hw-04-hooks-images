@@ -27,10 +27,9 @@ export default function ImageGallery({ searchQuery }) {
   const [modalImageALT, setModalImageALT] = useState('');
 
   useEffect(() => {
-    if (searchQuery !== '' && page === 1) {
+    if (searchQuery !== '') {
       setStatus(STATUS.pending);
       setPage(1);
-      setImages([]);
 
       fetch(
         `${BASE_URL}?q=${searchQuery}&page=${page}&key=${API_KEY}&image_type=photo&orientation=horizontal&per_page=12`,
@@ -82,7 +81,7 @@ export default function ImageGallery({ searchQuery }) {
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, page]);
+  }, [page]);
 
   const scrolling = () => {
     window.scrollTo({
